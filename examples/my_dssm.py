@@ -3,9 +3,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright 2020 Sina Inc.
 # 功能: BATCH负采样模型，通过将内部矛盾转移为敌我矛盾，解决east sample问题
-# 作者: yuanbo5@staff.weibo.com
 # 时间: 2021/12/9 11:00
 # 模型结构：简单一层双塔
 
