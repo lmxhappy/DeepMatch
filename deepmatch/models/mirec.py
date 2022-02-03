@@ -1,8 +1,6 @@
 """
 Author:
-    Weichen Shen, wcshen1994@163.com
-Reference:
-Covington P, Adams J, Sargin E. Deep neural networks for youtube recommendations[C]//Proceedings of the 10th ACM conference on recommender systems. 2016: 191-198.
+    Mingxing liu, lmxhappy@sina.com
 """
 from deepctr.feature_column import build_model_input
 from deepctr.layers import DNN
@@ -27,29 +25,29 @@ def user_embed_layer(user_features, user_feature_columns, seed, embedding_matrix
 
     return user_dnn_input
 
-def item_embed_layer(item_feature_columns, item_features, embedding_matrix_dict):
-    '''
-    item input的embed layer
-    '''
-    # movie_id的embed matrix
-    item_feature_name = item_feature_columns[0].name
-    item_vocabulary_size = item_feature_columns[0].vocabulary_size
+# def item_embed_layer(item_feature_columns, item_features, embedding_matrix_dict):
+#     '''
+#     item input的embed layer
+#     '''
+#     # movie_id的embed matrix
+#     item_feature_name = item_feature_columns[0].name
+#     item_vocabulary_size = item_feature_columns[0].vocabulary_size
+#
+#     movie_id_embed_matrix = item_features[item_feature_name]
+#     item_index = list(range(item_vocabulary_size))
+#     item_index = EmbeddingIndex(item_index)(movie_id_embed_matrix)
+#
+#     # movie_id的embed matrix
+#     item_embedding_matrix = embedding_matrix_dict[item_feature_name]
+#     tmp = item_embedding_matrix(item_index)  # [209, 16]
+#
+#     # 这里是恒等变换
+#     item_embedding_weight = NoMask()(tmp)  # 【B,16]
+#
+#     return item_embedding_weight
 
-    movie_id_embed_matrix = item_features[item_feature_name]
-    item_index = list(range(item_vocabulary_size))
-    item_index = EmbeddingIndex(item_index)(movie_id_embed_matrix)
-
-    # movie_id的embed matrix
-    item_embedding_matrix = embedding_matrix_dict[item_feature_name]
-    tmp = item_embedding_matrix(item_index)  # [209, 16]
-
-    # 这里是恒等变换
-    item_embedding_weight = NoMask()(tmp)  # 【B,16]
-
-    return item_embedding_weight
-
-def YoutubeDNN(user_feature_columns, item_feature_columns, num_sampled=5,
-               user_dnn_hidden_units=(64, 32),
+def MIRec(user_feature_columns, item_feature_columns, num_sampled=5,
+               user_dnn_hidden_units=(64, 32), item_dnn_hidden_units=(64, 32),
                dnn_activation='relu', dnn_use_bn=False,
                l2_reg_dnn=0, l2_reg_embedding=1e-6, dnn_dropout=0, output_activation='linear', seed=1024, ):
     """Instantiates the YoutubeDNN Model architecture. 包括定义网络的input、output和网络本身
@@ -90,21 +88,24 @@ def YoutubeDNN(user_feature_columns, item_feature_columns, num_sampled=5,
     item_features = build_model_input(item_feature_columns)
     item_inputs_list = list(item_features.values())
 
-    if len(item_feature_columns) > 1:
-        raise ValueError("Now YoutubeNN only support 1 item feature like item_id")
+    # item_embedding_weight = item_embed_layer(item_feature_columns, item_features, embedding_matrix_dict)
 
-    # 2.1经过embed layer
-    item_embedding_weight = item_embed_layer(item_feature_columns, item_features, embedding_matrix_dict)
+    # 2.2 经过embed layer层
+    item_dnn_input = user_embed_layer(item_features, item_feature_columns, seed, embedding_matrix_dict, l2_reg_embedding)
+
+    # 2.3 经过MLP网络
+    #[?, 16]
+    item_dnn_out = DNN(item_dnn_hidden_units, dnn_activation, l2_reg_dnn, dnn_dropout,
+                       dnn_use_bn, output_activation=output_activation, seed=seed)(item_dnn_input)
 
     # 3 关联做softmax
     # 这里也是恒等变换
-    pooling_item_embedding_weight = PoolingLayer()([item_embedding_weight]) #[item_vocabulary_size,16], item_vocabulary_size=209
-    softmax_layer = SampledSoftmaxLayer(num_sampled=num_sampled)
 
     item_feature_name = item_feature_columns[0].name
     movie_id_embed_matrix = item_features[item_feature_name]
 
-    output = softmax_layer([pooling_item_embedding_weight, user_dnn_out, movie_id_embed_matrix]) #item_features[item_feature_name]:[?,1]
+    softmax_layer = SampledSoftmaxLayer(num_sampled=num_sampled)
+    output = softmax_layer([item_dnn_out, user_dnn_out, movie_id_embed_matrix]) #item_features[item_feature_name]:[?,1]
     print(type(user_inputs_list[0]))
 
     # 前面的是user侧的input，最后一个是item侧的input
@@ -115,7 +116,6 @@ def YoutubeDNN(user_feature_columns, item_feature_columns, num_sampled=5,
     model.__setattr__("user_embedding", user_dnn_out)
 
     model.__setattr__("item_input", item_inputs_list)
-    model.__setattr__("item_embedding",
-                      get_item_embedding(pooling_item_embedding_weight, item_features[item_feature_name]))
+    model.__setattr__("item_embedding", item_dnn_out)
 
     return model

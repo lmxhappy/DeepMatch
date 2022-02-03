@@ -4,7 +4,11 @@ from tqdm import tqdm
 from tensorflow.python.keras.preprocessing.sequence import pad_sequences
 
 def gen_data_set(data, negsample=0):
+    '''
+    @param data: 是按timestamp从小到大排列好的。
 
+    每个样本是（userid、hist movie id，movie_id，label，hist movie id length, rating list)
+    '''
     data.sort_values("timestamp", inplace=True)
     item_ids = data['movie_id'].unique()
 
@@ -20,7 +24,8 @@ def gen_data_set(data, negsample=0):
         for i in range(1, len(pos_list)):
             hist = pos_list[:i]
             if i != len(pos_list) - 1:
-                train_set.append((reviewerID, hist[::-1], pos_list[i], 1, len(hist[::-1]),rating_list[i]))
+                one_sample = (reviewerID, hist[::-1], pos_list[i], 1, len(hist[::-1]),rating_list[i])
+                train_set.append(one_sample)
                 for negi in range(negsample):
                     train_set.append((reviewerID, hist[::-1], neg_list[i*negsample+negi], 0,len(hist[::-1])))
             else:
@@ -65,8 +70,13 @@ def gen_data_set_sdm(data, seq_short_len=5, seq_prefer_len=50):
 
     return train_set, test_set
 
-def gen_model_input(train_set,user_profile,seq_max_len):
+def gen_model_input(train_set, user_profile, item_profile, seq_max_len):
+    '''
+    返回dict，key是特征名字，value是numpy array。
 
+    @param trainset：每个样本是（userid、hist movie id，movie_id，label，hist movie id length, rating list)
+
+    '''
     train_uid = np.array([line[0] for line in train_set])
     train_seq = [line[1] for line in train_set]
     train_iid = np.array([line[2] for line in train_set])
@@ -79,6 +89,9 @@ def gen_model_input(train_set,user_profile,seq_max_len):
 
     for key in ["gender", "age", "occupation", "zip"]:
         train_model_input[key] = user_profile.loc[train_model_input['user_id']][key].values
+
+    # for key in ['genres']:
+    #     train_model_input[key] = item_profile.loc[train_model_input['movie_id']][key].values
 
     return train_model_input, train_label
 

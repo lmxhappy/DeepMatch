@@ -25,10 +25,14 @@ class PoolingLayer(Layer):
 
     def call(self, seq_value_len_list, mask=None, **kwargs):
         if not isinstance(seq_value_len_list, list):
+
             seq_value_len_list = [seq_value_len_list]
         if len(seq_value_len_list) == 1:
             return seq_value_len_list[0]
+        # 元素shape：[209,16,1]
         expand_seq_value_len_list = list(map(lambda x: tf.expand_dims(x, axis=-1), seq_value_len_list))
+
+        # print(expand_seq_value_len_list[0].get_shape())
         a = concat_func(expand_seq_value_len_list)
         if self.mode == "mean":
             hist = reduce_mean(a, axis=-1, )
@@ -50,12 +54,13 @@ class SampledSoftmaxLayer(Layer):
         super(SampledSoftmaxLayer, self).__init__(**kwargs)
 
     def build(self, input_shape):
-        self.size = input_shape[0][0]
+        self.size = input_shape[0][0] #item_vocabulary_size
         self.zero_bias = self.add_weight(shape=[self.size],
                                          initializer=Zeros,
                                          dtype=tf.float32,
                                          trainable=False,
-                                         name="bias")
+                                         name="bias") #[item_vocabulary_size,]
+
         super(SampledSoftmaxLayer, self).build(input_shape)
 
     def call(self, inputs_with_label_idx, training=None, **kwargs):
@@ -64,6 +69,8 @@ class SampledSoftmaxLayer(Layer):
         target (i.e., a repeat of the training data) to compute the labels
         argument
         """
+        # [item_vocabulary_size,16], item_vocabulary_size=209
+        # [B, 16], [B,1]
         embeddings, inputs, label_idx = inputs_with_label_idx
 
         loss = tf.nn.sampled_softmax_loss(weights=embeddings,  # self.item_embedding.
@@ -229,6 +236,7 @@ class EmbeddingIndex(Layer):
             input_shape)  # Be sure to call this somewhere!
 
     def call(self, x, **kwargs):
+        '''挺逗，与x居然无关'''
         return tf.constant(self.index)
 
     def get_config(self, ):
